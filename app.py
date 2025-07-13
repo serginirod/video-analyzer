@@ -52,7 +52,7 @@ def analizar():
     # Ejecutar análisis
     try:
         resultado = analyze_video(filepath, criterios_json)
-        return jsonify({"mensaje": "Video analizado correctamente", "resultado": resultado})
+        return jsonify({"mensaje": "Video analizado correctamente", "resultado": "<br>".join(resultado)})
     except Exception as e:
         logging.exception("Error al analizar el video")
         return jsonify({"error": "Error interno al analizar el video"}), 500
