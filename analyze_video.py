@@ -1,68 +1,76 @@
-import mediapipe as mp
 import cv2
-import json
-import logging
+import mediapipe as mp
 
-def analyze_video(video_path, criterios_json):
-    criterios = json.loads(criterios_json)
+mp_pose = mp.solutions.pose
 
-    mp_pose = mp.solutions.pose
-    pose = mp_pose.Pose()
-    cap = cv2.VideoCapture(video_path)
+def analizar_altura_bote(lm, tolerancia=0.05):
+    hip_y = (lm[mp_pose.PoseLandmark.LEFT_HIP].y + lm[mp_pose.PoseLandmark.RIGHT_HIP].y) / 2
+    wrist_y = (lm[mp_pose.PoseLandmark.LEFT_WRIST].y + lm[mp_pose.PoseLandmark.RIGHT_WRIST].y) / 2
+    altura_bote = abs(wrist_y - hip_y)
+    return altura_bote <= tolerancia
 
-    total_frames = 0
+def analizar_rodillas_adelante(lm, tolerancia=0.05):
+    left_knee_x = lm[mp_pose.PoseLandmark.LEFT_KNEE].x
+    right_knee_x = lm[mp_pose.PoseLandmark.RIGHT_KNEE].x
+    left_hip_x = lm[mp_pose.PoseLandmark.LEFT_HIP].x
+    right_hip_x = lm[mp_pose.PoseLandmark.RIGHT_HIP].x
+
+    alineacion_izquierda = abs(left_knee_x - left_hip_x)
+    alineacion_derecha = abs(right_knee_x - right_hip_x)
+
+    return alineacion_izquierda < tolerancia and alineacion_derecha < tolerancia
+
+def evaluar_criterios(video_path, criterios):
     resultados = []
+    cap = cv2.VideoCapture(video_path)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+
+    bote_ok = []
+    rodillas_ok = []
 
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
 
-        total_frames += 1
-        image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        result = pose.process(image_rgb)
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = pose.process(frame_rgb)
 
-        if result.pose_landmarks:
-            altura_bote = analizar_altura_bote(result.pose_landmarks)
-            if altura_bote:
-                resultados.append('Bote a altura correcta')
+        if results.pose_landmarks:
+            lm = results.pose_landmarks.landmark
+
+            for criterio in criterios:
+                nombre = criterio.get("nombre", "").lower()
+
+                if "cadera" in nombre:
+                    cumple = analizar_altura_bote(lm)
+                    bote_ok.append(cumple)
+                elif "rodilla" in nombre:
+                    cumple = analizar_rodillas_adelante(lm)
+                    rodillas_ok.append(cumple)
 
     cap.release()
-    pose.close()
-
-    mensaje = f"🎥 Analizando: {video_path.split('/')[-1]}\n"
-    mensaje += f"📊 Total de frames: {total_frames}\n"
-    mensaje += "=== Evaluación de criterios ===\n"
 
     for criterio in criterios:
-        descripcion = criterio.get('texto')
-        peso = criterio.get('peso', 1)
+        nombre = criterio.get("nombre", "").lower()
+        peso = criterio.get("peso", 1)
 
-        if not descripcion:
-            logging.warning(f"Criterio inválido: {criterio}")
-            continue  # salta al siguiente criterio
-
-        if descripcion == "Bote hasta la altura de la cadera +/- 5cm":
-            cumple = any("Bote a altura correcta" in r for r in resultados)
-            estado = "✔️ Cumplido" if cumple else "❌ No cumplido"
+        if "cadera" in nombre:
+            cumplido = sum(bote_ok) / len(bote_ok) > 0.7 if bote_ok else False
+        elif "rodilla" in nombre:
+            cumplido = sum(rodillas_ok) / len(rodillas_ok) > 0.7 if rodillas_ok else False
         else:
-            estado = "[pendiente de implementación]"
+            cumplido = None
 
-        mensaje += f"- {descripcion} (peso {peso}) → {estado}\n"
+        resultados.append({
+            "nombre": criterio.get("nombre"),
+            "peso": peso,
+            "cumplido": cumplido
+        })
 
-    return mensaje
-
-def analizar_altura_bote(pose_landmarks):
-    MUÑECA_DERECHA = 16
-    CADERA_DERECHA = 24
-
-    muñeca = pose_landmarks.landmark[MUÑECA_DERECHA]
-    cadera = pose_landmarks.landmark[CADERA_DERECHA]
-
-    altura_muñeca = muñeca.y
-    altura_cadera = cadera.y
-
-    diferencia = abs(altura_muñeca - altura_cadera)
-    tolerancia = 0.05
-
-    return diferencia <= tolerancia
+    return {
+        "total_frames": total_frames,
+        "resultados": resultados
+    }

@@ -6,9 +6,15 @@
     "peso": 1
   },
   {
-    "texto": "Bote hasta la altura de la cadera +/- 10cm",
-    "tipo": "bote_altura",
-    "tolerancia": 0.10,
-    "peso": 1
+    "texto": "Rodillas mirando al frente",
+    "tipo": "rodillas_frente",
+    "tolerancia": 0.05,
+    "peso": 2
+  },
+  {
+    "texto": "Bote con la yema o dedos de la mano, no con la palma de la mano",
+    "tipo": "bote_dedos",
+    "tolerancia": 0.05,
+    "peso": 3
   }
 ]
