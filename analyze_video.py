@@ -60,7 +60,7 @@ def analyze_video(video_path, criterios_json="criterios.json"):
        return [f"❌ Error al cargar criterios: {str(e)}"]
 
     for criterio in criterios:
-        descripcion = criterio.get("criterio")
+        descripcion = criterio.get("texto")
         peso = criterio.get("peso", 1)
 
         if "cadera" in descripcion and "bote" in descripcion:
