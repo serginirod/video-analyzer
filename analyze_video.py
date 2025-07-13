@@ -51,10 +51,13 @@ def analyze_video(video_path, criterios_json="criterios.json"):
     cap.release()
 
     try:
-        with open(criterios_json, "r", encoding="utf-8") as f:
-            criterios = json.load(f)
+        if isinstance(criterios_json, list):
+            criterios = criterios_json
+        else:
+            with open(criterios_json, "r", encoding="utf-8") as f:
+                criterios = json.load(f)
     except Exception as e:
-        return [f"❌ Error al cargar criterios: {str(e)}"]
+       return [f"❌ Error al cargar criterios: {str(e)}"]
 
     for criterio in criterios:
         descripcion = criterio.get("criterio")
