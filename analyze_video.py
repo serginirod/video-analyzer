@@ -34,7 +34,7 @@ def analyze_video(video_path, criterios_json):
     mensaje += "=== Evaluación de criterios ===\n"
 
     for criterio in criterios:
-        descripcion = criterio.get('descripcion')
+        descripcion = criterio.get('texto')
         peso = criterio.get('peso', 1)
         if descripcion == "Bote hasta la altura de la cadera +/- 5cm":
             cumple = any("Bote a altura correcta" in r for r in resultados)
