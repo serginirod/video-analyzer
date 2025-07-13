@@ -44,7 +44,7 @@ def analizar():
     # ✅ Leer criterios desde archivo fijo
     try:
         with open("criterios.json", "r", encoding="utf-8") as f:
-            criterios_json = f.read()
+            criterios_json = json.load(f)
     except Exception as e:
         logging.error(f"No se pudo leer criterios.json: {e}")
         return jsonify({"error": "No se pudo leer criterios"}), 500
