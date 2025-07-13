@@ -1,55 +1,67 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
-import cv2
 import json
-import tempfile
-import mediapipe as mp
 
 app = Flask(__name__)
 CORS(app)
 
-@app.route("/analyze", methods=["POST"])
-def analyze():
-    video_file = request.files.get("video")
-    criteria_json = request.form.get("criteria")
+UPLOAD_FOLDER = "upload"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-    if not video_file or not criteria_json:
-        return jsonify({"error": "Faltan datos"}), 400
+@app.route('/')
+def home():
+    return "🎬 Backend de análisis de vídeo funcionando correctamente."
 
+@app.route('/analyze', methods=['POST'])
+def analyze_video():
     try:
-        criterios = json.loads(criteria_json)
-    except Exception as e:
-        return jsonify({"error": "JSON inválido", "detalle": str(e)}), 400
+        print("✅ Petición recibida en /analyze")
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        video_path = os.path.join(temp_dir, video_file.filename)
+        # 1. Verificamos que viene el vídeo
+        if 'video' not in request.files:
+            print("❌ No se encontró el archivo de vídeo en la petición")
+            return jsonify({"error": "No se ha enviado el vídeo"}), 400
+
+        # 2. Verificamos que vienen los criterios
+        if 'criterios' not in request.form:
+            print("❌ No se encontraron criterios en la petición")
+            return jsonify({"error": "No se han enviado los criterios"}), 400
+
+        video_file = request.files['video']
+        criterios_json = request.form['criterios']
+
+        # 3. Guardamos el vídeo
+        video_path = os.path.join(UPLOAD_FOLDER, video_file.filename)
         video_file.save(video_path)
+        print(f"🎥 Vídeo guardado en: {video_path}")
 
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            return jsonify({"error": "No se pudo abrir el vídeo"}), 400
+        # 4. Guardamos los criterios como JSON
+        criterios = json.loads(criterios_json)
+        criterios_path = os.path.join(UPLOAD_FOLDER, "criterios.json")
+        with open(criterios_path, "w") as f:
+            json.dump(criterios, f, indent=2)
+        print(f"📋 Criterios guardados en: {criterios_path}")
 
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        # 5. Resultado simulado por ahora (aquí meteremos MediaPipe)
+        analisis_resultado = {
+            "video": video_file.filename,
+            "frames_detectados": 176,  # Simulado
+            "criterios": [
+                {
+                    "criterio": c["criterio"],
+                    "peso": c["peso"],
+                    "resultado": "[pendiente de implementación]"
+                } for c in criterios
+            ]
+        }
 
-        mp_pose = mp.solutions.pose.Pose(static_image_mode=False)
-        cumple = []
-        no_cumple = []
+        print("✅ Análisis simulado completado")
+        return jsonify(analisis_resultado)
 
-        for criterio in criterios:
-            if criterio["criterio"].lower().startswith("espalda recta"):
-                cumple.append(criterio)
-            else:
-                no_cumple.append(criterio)
-
-        cap.release()
-
-    return jsonify({
-        "video": video_file.filename,
-        "frames": total_frames,
-        "cumple": cumple,
-        "no_cumple": no_cumple
-    })
+    except Exception as e:
+        print(f"💥 Error inesperado: {str(e)}")
+        return jsonify({"error": f"Error interno: {str(e)}"}), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    app.run(debug=True)
