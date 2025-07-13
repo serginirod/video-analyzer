@@ -1,67 +1,62 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
-import json
+import uuid
+import logging
+
+UPLOAD_FOLDER = "uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app = Flask(__name__)
 CORS(app)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-UPLOAD_FOLDER = "upload"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-@app.route('/')
-def home():
-    return "🎬 Backend de análisis de vídeo funcionando correctamente."
+@app.route("/analyze", methods=["POST"])
+def analyze():
+    logger.info("🔍 Petición recibida en /analyze")
 
-@app.route('/analyze', methods=['POST'])
-def analyze_video():
-    try:
-        print("✅ Petición recibida en /analyze")
+    # Validar existencia de fichero de vídeo
+    if "video" not in request.files:
+        logger.warning("⚠️ No se recibió el archivo de vídeo")
+        return jsonify({"error": "Faltan datos"}), 400
 
-        # 1. Verificamos que viene el vídeo
-        if 'video' not in request.files:
-            print("❌ No se encontró el archivo de vídeo en la petición")
-            return jsonify({"error": "No se ha enviado el vídeo"}), 400
+    video = request.files["video"]
 
-        # 2. Verificamos que vienen los criterios
-        if 'criterios' not in request.form:
-            print("❌ No se encontraron criterios en la petición")
-            return jsonify({"error": "No se han enviado los criterios"}), 400
+    if video.filename == "":
+        logger.warning("⚠️ El nombre del archivo está vacío")
+        return jsonify({"error": "Nombre de archivo vacío"}), 400
 
-        video_file = request.files['video']
-        criterios_json = request.form['criterios']
+    # Guardar vídeo
+    video_filename = f"{uuid.uuid4()}_{video.filename}"
+    video_path = os.path.join(app.config['UPLOAD_FOLDER'], video_filename)
+    video.save(video_path)
+    logger.info(f"✅ Vídeo guardado en: {video_path}")
 
-        # 3. Guardamos el vídeo
-        video_path = os.path.join(UPLOAD_FOLDER, video_file.filename)
-        video_file.save(video_path)
-        print(f"🎥 Vídeo guardado en: {video_path}")
+    # Procesar criterios
+    criterios_json = request.form.get("criterios")
+    if not criterios_json:
+        logger.warning("⚠️ No se recibieron criterios")
+        return jsonify({"error": "Faltan datos"}), 400
 
-        # 4. Guardamos los criterios como JSON
-        criterios = json.loads(criterios_json)
-        criterios_path = os.path.join(UPLOAD_FOLDER, "criterios.json")
-        with open(criterios_path, "w") as f:
-            json.dump(criterios, f, indent=2)
-        print(f"📋 Criterios guardados en: {criterios_path}")
+    logger.info(f"📄 Criterios recibidos: {criterios_json}")
 
-        # 5. Resultado simulado por ahora (aquí meteremos MediaPipe)
-        analisis_resultado = {
-            "video": video_file.filename,
-            "frames_detectados": 176,  # Simulado
-            "criterios": [
-                {
-                    "criterio": c["criterio"],
-                    "peso": c["peso"],
-                    "resultado": "[pendiente de implementación]"
-                } for c in criterios
-            ]
-        }
+    # Simulación de análisis
+    resultado = f"""
+    🎥 Analizando: {video.filename}
+    === Evaluación de criterios ===
+    (esto es una simulación, aquí irá el análisis real con MediaPipe y OpenCV)
+    """
 
-        print("✅ Análisis simulado completado")
-        return jsonify(analisis_resultado)
+    logger.info("✅ Análisis simulado completo")
 
-    except Exception as e:
-        print(f"💥 Error inesperado: {str(e)}")
-        return jsonify({"error": f"Error interno: {str(e)}"}), 500
+    return jsonify({"resultado": resultado.strip()}), 200
 
+
+# 🔥 Punto de entrada principal compatible con Render
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
