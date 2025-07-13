@@ -61,11 +61,12 @@ def analyze_video(video_path, criterios_json="criterios.json"):
 
     for criterio in criterios:
         descripcion = criterio.get("texto")
+        tipo = criterio.get("tipo")
         peso = criterio.get("peso", 1)
 
-        if "cadera" in descripcion and "bote" in descripcion:
+        if tipo == "bote_altura":
             cumplido = analizar_altura_bote(landmarks)
-        elif "rodillas" in descripcion and "frente" in descripcion:
+        elif tipo == "rodillas_frente":
             cumplido = analizar_rodillas_frente(landmarks)
         else:
             resultados.append(f"- {descripcion} (peso {peso}) → [pendiente de implementación]")
