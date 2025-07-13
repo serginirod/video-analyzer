@@ -9,7 +9,6 @@ from analyze_video import analyze_video
 UPLOAD_FOLDER = "uploads"
 ALLOWED_EXTENSIONS = {"mp4", "avi", "mov"}
 
-# Crear carpeta si no existe
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app = Flask(__name__)
@@ -37,22 +36,18 @@ def analizar():
         logging.error(f"Tipo de archivo no permitido: {file.filename}")
         return jsonify({"error": "Tipo de archivo no permitido"}), 400
 
-    # Guardar el archivo de video
     filename = secure_filename(file.filename)
     filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
     file.save(filepath)
     logging.info(f"Archivo guardado en {filepath}")
 
-    # Leer y validar los criterios
-    criterios_json = request.form.get("criterios")
+    # ✅ Leer criterios desde archivo fijo
     try:
-        criterios = json.loads(criterios_json)
-        criterios = [c for c in criterios if c.get("texto")]  # Solo los válidos
-        if not criterios:
-            raise ValueError("Faltan criterios válidos")
+        with open("criterios.json", "r", encoding="utf-8") as f:
+            criterios_json = f.read()
     except Exception as e:
-        logging.error(f"Criterios inválidos: {e}")
-        return jsonify({"error": "Criterios inválidos"}), 400
+        logging.error(f"No se pudo leer criterios.json: {e}")
+        return jsonify({"error": "No se pudo leer criterios"}), 500
 
     # Ejecutar análisis
     try:
@@ -64,4 +59,3 @@ def analizar():
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-
