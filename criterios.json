@@ -1,12 +1,12 @@
 [
   {
-    "nombre": "Bote hasta la altura de la cadera +/- 5cm",
+    "texto": "Bote hasta la altura de la cadera +/- 5cm",
     "tipo": "bote_altura",
     "tolerancia": 0.05,
     "peso": 1
   },
   {
-    "nombre": "Bote hasta la altura de la cadera +/- 10cm",
+    "texto": "Bote hasta la altura de la cadera +/- 10cm",
     "tipo": "bote_altura",
     "tolerancia": 0.10,
     "peso": 1

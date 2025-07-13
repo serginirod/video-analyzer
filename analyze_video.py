@@ -1,6 +1,7 @@
 import mediapipe as mp
 import cv2
 import json
+import logging
 
 def analyze_video(video_path, criterios_json):
     criterios = json.loads(criterios_json)
@@ -36,17 +37,22 @@ def analyze_video(video_path, criterios_json):
     for criterio in criterios:
         descripcion = criterio.get('texto')
         peso = criterio.get('peso', 1)
+
+        if not descripcion:
+            logging.warning(f"Criterio inválido: {criterio}")
+            continue  # salta al siguiente criterio
+
         if descripcion == "Bote hasta la altura de la cadera +/- 5cm":
             cumple = any("Bote a altura correcta" in r for r in resultados)
             estado = "✔️ Cumplido" if cumple else "❌ No cumplido"
         else:
             estado = "[pendiente de implementación]"
+
         mensaje += f"- {descripcion} (peso {peso}) → {estado}\n"
 
     return mensaje
 
 def analizar_altura_bote(pose_landmarks):
-    # IDs de puntos en MediaPipe
     MUÑECA_DERECHA = 16
     CADERA_DERECHA = 24
 
@@ -57,8 +63,6 @@ def analizar_altura_bote(pose_landmarks):
     altura_cadera = cadera.y
 
     diferencia = abs(altura_muñeca - altura_cadera)
-
-    # El valor de tolerancia puede ajustarse
     tolerancia = 0.05
 
     return diferencia <= tolerancia
