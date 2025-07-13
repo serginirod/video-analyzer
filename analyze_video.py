@@ -1,76 +1,75 @@
 import cv2
 import mediapipe as mp
+import json
 
 mp_pose = mp.solutions.pose
 
-def analizar_altura_bote(lm, tolerancia=0.05):
-    hip_y = (lm[mp_pose.PoseLandmark.LEFT_HIP].y + lm[mp_pose.PoseLandmark.RIGHT_HIP].y) / 2
-    wrist_y = (lm[mp_pose.PoseLandmark.LEFT_WRIST].y + lm[mp_pose.PoseLandmark.RIGHT_WRIST].y) / 2
-    altura_bote = abs(wrist_y - hip_y)
-    return altura_bote <= tolerancia
+def analizar_altura_bote(landmarks):
+    try:
+        mano_y = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value].y
+        cadera_y = landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].y
+        altura_relativa = abs(mano_y - cadera_y)
+        return altura_relativa < 0.05  # margen de 5%
+    except Exception:
+        return False
 
-def analizar_rodillas_adelante(lm, tolerancia=0.05):
-    left_knee_x = lm[mp_pose.PoseLandmark.LEFT_KNEE].x
-    right_knee_x = lm[mp_pose.PoseLandmark.RIGHT_KNEE].x
-    left_hip_x = lm[mp_pose.PoseLandmark.LEFT_HIP].x
-    right_hip_x = lm[mp_pose.PoseLandmark.RIGHT_HIP].x
+def analizar_rodillas_frente(landmarks):
+    try:
+        rodilla_izq = landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value]
+        rodilla_der = landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value]
+        pie_izq = landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value]
+        pie_der = landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value]
 
-    alineacion_izquierda = abs(left_knee_x - left_hip_x)
-    alineacion_derecha = abs(right_knee_x - right_hip_x)
+        rodillas_rectas = (
+            abs(rodilla_izq.x - pie_izq.x) < 0.1 and
+            abs(rodilla_der.x - pie_der.x) < 0.1
+        )
+        return rodillas_rectas
+    except Exception:
+        return False
 
-    return alineacion_izquierda < tolerancia and alineacion_derecha < tolerancia
-
-def evaluar_criterios(video_path, criterios):
+def analyze_video(video_path, criterios_json="criterios.json"):
     resultados = []
     cap = cv2.VideoCapture(video_path)
+
+    if not cap.isOpened():
+        return ["❌ No se pudo abrir el vídeo."]
+
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+    with mp_pose.Pose(static_image_mode=False) as pose:
+        success, frame = cap.read()
+        while success:
+            image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = pose.process(image_rgb)
 
-    bote_ok = []
-    rodillas_ok = []
-
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = pose.process(frame_rgb)
-
-        if results.pose_landmarks:
-            lm = results.pose_landmarks.landmark
-
-            for criterio in criterios:
-                nombre = criterio.get("nombre", "").lower()
-
-                if "cadera" in nombre:
-                    cumple = analizar_altura_bote(lm)
-                    bote_ok.append(cumple)
-                elif "rodilla" in nombre:
-                    cumple = analizar_rodillas_adelante(lm)
-                    rodillas_ok.append(cumple)
+            if results.pose_landmarks:
+                landmarks = results.pose_landmarks.landmark
+                break  # usamos solo el primer frame válido
+            success, frame = cap.read()
 
     cap.release()
 
+    try:
+        with open(criterios_json, "r", encoding="utf-8") as f:
+            criterios = json.load(f)
+    except Exception as e:
+        return [f"❌ Error al cargar criterios: {str(e)}"]
+
     for criterio in criterios:
-        nombre = criterio.get("nombre", "").lower()
+        descripcion = criterio.get("criterio")
         peso = criterio.get("peso", 1)
 
-        if "cadera" in nombre:
-            cumplido = sum(bote_ok) / len(bote_ok) > 0.7 if bote_ok else False
-        elif "rodilla" in nombre:
-            cumplido = sum(rodillas_ok) / len(rodillas_ok) > 0.7 if rodillas_ok else False
+        if "cadera" in descripcion and "bote" in descripcion:
+            cumplido = analizar_altura_bote(landmarks)
+        elif "rodillas" in descripcion and "frente" in descripcion:
+            cumplido = analizar_rodillas_frente(landmarks)
         else:
-            cumplido = None
+            resultados.append(f"- {descripcion} (peso {peso}) → [pendiente de implementación]")
+            continue
 
-        resultados.append({
-            "nombre": criterio.get("nombre"),
-            "peso": peso,
-            "cumplido": cumplido
-        })
+        resultado = "✔️ Cumplido" if cumplido else "❌ Fallido"
+        resultados.append(f"- {descripcion} (peso {peso}) → {resultado}")
 
-    return {
-        "total_frames": total_frames,
-        "resultados": resultados
-    }
+    resultados.insert(0, f"📊 Total de frames: {total_frames}")
+    return resultados
